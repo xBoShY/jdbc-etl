@@ -1,0 +1,23 @@
+jdbc:
+  url: jdbc:oracle:thin:@//localhost:1521/default
+  username: default
+  password: "#hm.01!"
+
+init-sql:
+
+fetch-sql: |-
+  select
+    anomes,
+    tipo_indicador_cod,
+    distrito_cod,
+    concelho_cod,
+    nutsi_cod,
+    nutsii_cod,
+    pais_cod,
+    continente_cod,
+    card_non_versioned_id,
+    csa_cod,
+    merchant_non_versioned_id,
+    q,
+    v
+  from abc.source

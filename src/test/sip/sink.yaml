@@ -1,0 +1,26 @@
+jdbc:
+  url: jdbc:clickhouse://localhost:8123/default
+  username: default
+  password: "#hm.01!"
+
+init-sql:
+
+sink-table:
+  recreate: false
+  name: stage.tmp_opendata_cube_processed
+  columns:
+    - anomes
+    - tipo_indicador
+    - distrito_cod
+    - concelho_cod
+    - nutsi
+    - nutsii
+    - pais_cod
+    - continente
+    - csa_cod
+    - europawithoutpt
+    - q
+    - v
+    - q_crd
+  create-sql:
+  drop-sql:

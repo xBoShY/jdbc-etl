@@ -1,0 +1,10 @@
+com/xboshy/Main.class
+com/xboshy/Step.class
+com/xboshy/Table.class
+com/xboshy/Processor.class
+com/xboshy/State.class
+com/xboshy/Source.class
+com/xboshy/DriverShim.class
+com/xboshy/JdbcTools.class
+com/xboshy/JDBCDriver.class
+com/xboshy/Sink.class

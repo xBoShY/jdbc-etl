@@ -1,0 +1,36 @@
+jdbc:
+  url: jdbc:clickhouse://localhost:8123/default
+  username: default
+  password: "#hm.01!"
+  driver:
+    file: /home/xboshy/Projects/sibs/jdbc-etl/target/clickhouse-jdbc-0.2.4-jar-with-dependencies.jar
+    class: ru.yandex.clickhouse.ClickHouseDriver
+    properties:
+      jdbc.custom.connection.properties: oracle.jdbc.fanEnabled=false
+      socket_timeout: 2147483647
+
+
+init-sql:
+  - |-
+    create table if not exists abc.sink (
+        col1 String,
+        col2 String,
+        col3 String,
+        col4 String
+    ) engine = MergeTree()
+    partition by tuple(col1, col2)
+    order by tuple(col1, col2)
+    primary key tuple(col1, col2)
+    settings index_granularity=8192
+
+clean-sql:
+  - drop table if exists abc.sink
+
+sink-table:
+  name: abc.sink
+  columns:
+    - col1
+    - col2
+    - col3
+    - col4
+

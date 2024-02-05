@@ -1,0 +1,160 @@
+jdbc:
+  url: jdbc:clickhouse://localhost:8123/default
+  username: default
+  password: "#hm.01!"
+
+init-sql:
+
+process-table:
+  recreate: true
+  name: sip.stage_opendata_input
+  columns:
+    anomes: Nullable(Decimal64(2))
+    tipo_indicador_cod: Nullable(String)
+    distrito_cod: Nullable(Decimal64(2))
+    concelho_cod: Nullable(Decimal64(2))
+    nutsi_cod: Nullable(String)
+    nutsii_cod: Nullable(String)
+    pais_cod: Nullable(Decimal64(2))
+    continente_cod: Nullable(Decimal64(2))
+    card_non_versioned_id: Nullable(String)
+    csa_cod: Nullable(Int64)
+    merchant_non_versioned_id: Nullable(Int64)
+    q: Decimal64(2)
+    v: Decimal64(2)
+
+process-sql:
+  - drop table if exists sip.stage_opendata_step1
+  - drop table if exists sip.stage_opendata_step2
+  - drop table if exists sip.stage_opendata_output;
+  - |-
+    create table if not exists sip.stage_opendata_step1 (
+      anomes                     LowCardinality(String),
+      tipo_indicador_cod         LowCardinality(String),
+      distrito_cod               LowCardinality(String),
+      concelho_cod               LowCardinality(String),
+      nutsi_cod                  LowCardinality(String),
+      nutsii_cod                 LowCardinality(String),
+      pais_cod                   LowCardinality(String),
+      continente_cod             LowCardinality(String),
+      csa_cod                    LowCardinality(String),
+      card_non_versioned_id      Array(String),
+      europawithoutpt            UInt64,
+      q                          Int64,
+      v                          Decimal64(2)
+    ) engine = MergeTree()
+    order by tuple(tipo_indicador_cod, distrito_cod, concelho_cod, nutsi_cod, nutsii_cod, continente_cod, pais_cod, csa_cod)
+    primary key tuple(tipo_indicador_cod, distrito_cod, concelho_cod, nutsi_cod, nutsii_cod, continente_cod, pais_cod, csa_cod)
+    settings index_granularity=8192
+  - |-
+    create table if not exists sip.stage_opendata_step2 (
+      anomes                     LowCardinality(String),
+      tipo_indicador_cod         LowCardinality(String),
+      distrito_cod               LowCardinality(String),
+      concelho_cod               LowCardinality(String),
+      nutsi_cod                  LowCardinality(String),
+      nutsii_cod                 LowCardinality(String),
+      pais_cod                   LowCardinality(String),
+      continente_cod             LowCardinality(String),
+      csa_cod                    LowCardinality(String),
+      europawithoutpt            UInt64,
+      q                          Int64,
+      v                          Decimal64(2),
+      q_crd                      UInt64
+    ) engine = MergeTree()
+    order by tuple(tipo_indicador_cod, distrito_cod, concelho_cod, nutsi_cod, nutsii_cod, continente_cod, pais_cod, csa_cod)
+    primary key tuple(tipo_indicador_cod, distrito_cod, concelho_cod, nutsi_cod, nutsii_cod, continente_cod, pais_cod, csa_cod)
+    settings index_granularity=8192
+  - |-
+    create table if not exists sip.stage_opendata_output (
+      anomes                     Nullable(Decimal64(2)),
+      tipo_indicador_cod         Nullable(String),
+      distrito_cod               Nullable(Decimal64(2)),
+      concelho_cod               Nullable(Decimal64(2)),
+      nutsi_cod                  Nullable(String),
+      nutsii_cod                 Nullable(String),
+      pais_cod                   Nullable(Decimal64(2)),
+      continente_cod             Nullable(Decimal64(2)),
+      csa_cod                    Nullable(Int64),
+      europawithoutpt            Int64,
+      q                          Int64,
+      v                          Decimal64(2),
+      q_crd                      Int64
+    ) engine = MergeTree()
+    order by tuple(tipo_indicador_cod, distrito_cod, concelho_cod, nutsi_cod, nutsii_cod, continente_cod, pais_cod, csa_cod)
+    primary key tuple(tipo_indicador_cod, distrito_cod, concelho_cod, nutsi_cod, nutsii_cod, continente_cod, pais_cod, csa_cod)
+    settings index_granularity=8192
+  - |-
+    insert into sip.stage_opendata_step1
+    select
+      if(empty(toString(anomes)), '?EMPTY?', toString(anomes)) g_anomes,
+      if(empty(toString(tipo_indicador_cod)), '?EMPTY?', toString(tipo_indicador_cod)) g_tipo_indicador_cod,
+      if(empty(toString(distrito_cod)), '?EMPTY?', toString(distrito_cod)) g_distrito_cod,
+      if(empty(toString(concelho_cod)), '?EMPTY?', toString(concelho_cod)) g_concelho_cod,
+      if(empty(toString(nutsi_cod)), '?EMPTY?', toString(nutsi_cod)) g_nutsi_cod,
+      if(empty(toString(nutsii_cod)), '?EMPTY?', toString(nutsii_cod)) g_nutsii_cod,
+      if(empty(toString(pais_cod)), '?EMPTY?', toString(pais_cod)) g_pais_cod,
+      if(empty(toString(continente_cod)), '?EMPTY?', toString(continente_cod)) g_continente_cod,
+      if(empty(toString(csa_cod)), '?EMPTY?', toString(csa_cod)) g_csa_cod,
+      groupUniqArray(toString(card_non_versioned_id)) card_non_versioned_id,
+      sum(case when continente_cod = '8' then 1 else 0 end) europawithoutpt,
+      sum(q) q,
+      sum(v) v
+    from sip.stage_opendata_input f
+    group by
+    g_anomes,
+    g_tipo_indicador_cod,
+    g_distrito_cod,
+    g_concelho_cod,
+    g_nutsi_cod,
+    g_nutsii_cod,
+    g_pais_cod,
+    g_continente_cod,
+    g_csa_cod
+  - |-
+    insert into sip.stage_opendata_step2
+    select
+      any(anomes) anomes,
+      tipo_indicador_cod,
+      distrito_cod,
+      concelho_cod,
+      nutsi_cod,
+      nutsii_cod,
+      pais_cod,
+      continente_cod,
+      csa_cod,
+      sum(europawithoutpt) europawithoutpt,
+      sum(q) q,
+      sum(v) v,
+      arrayUniq(flatten(groupArray(card_non_versioned_id))) q_crd
+    from sip.stage_opendata_step1
+    group by
+      tipo_indicador_cod,
+      distrito_cod,
+      concelho_cod,
+      nutsi_cod,
+      nutsii_cod,
+      pais_cod,
+      continente_cod,
+      csa_cod
+    with cube
+  - |-
+    insert into sip.stage_opendata_output
+    select
+      toDecimal64(anomes, 2),
+      if(empty(tipo_indicador_cod), 999999, if(tipo_indicador_cod = '?EMPTY?', null, toDecimal64(tipo_indicador_cod, 2))) tipo_indicador_cod,
+      if(empty(distrito_cod), 999999, if(distrito_cod = '?EMPTY?', '', toDecimal64(distrito_cod, 2))) distrito_cod,
+      if(empty(concelho_cod), 999999, if(concelho_cod = '?EMPTY?', '', toDecimal64(concelho_cod, 2))) concelho_cod,
+      if(empty(nutsi_cod), '999999', if(nutsi_cod = '?EMPTY?', '', nutsi_cod)) nutsi_cod,
+      if(empty(nutsii_cod), '999999', if(nutsii_cod = '?EMPTY?', '', nutsii_cod)) nutsii_cod,
+      if(empty(pais_cod), 999999, if(pais_cod = '?EMPTY?', null, toDecimal64(pais_cod, 2))) pais_cod,
+      if(empty(continente_cod), 999999, if(continente_cod = '?EMPTY?', null, toDecimal64(continente_cod, 2))) continente_cod,
+      if(empty(csa_cod), 999999, if(csa_cod = '?EMPTY?', null, toInt64(csa_cod))) csa_cod,
+      toInt64(europawithoutpt),
+      q,
+      v,
+      q_crd
+    from sip.opendata_cube
+
+fetch-sql: |-
+  select col1, col2, col3, col4 from abc.process_output
